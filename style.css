@@ -92,3 +92,15 @@ button:hover {
     padding: 15px;
   }
 }
+.loader svg {
+  vertical-align: middle;
+  animation: spin 1s linear infinite;
+}
+.hidden {
+  display: none !important;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
