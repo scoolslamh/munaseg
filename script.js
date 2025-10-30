@@ -9,7 +9,7 @@ if (document.getElementById('loginBtn')) {
   const loginBtn = document.getElementById('loginBtn');
   const msg = document.getElementById('message');
 
-  // إنشاء مؤشر تحميل (spinner)
+  // إنشاء مؤشر تحميل
   const loader = document.createElement('span');
   loader.className = 'loader hidden';
   loader.style.marginRight = '8px';
@@ -30,8 +30,6 @@ if (document.getElementById('loginBtn')) {
         </g>
       </g>
     </svg>`;
-
-  // إدراج اللودر قبل الزر
   loginBtn.parentNode.insertBefore(loader, loginBtn);
 
   loginBtn.addEventListener('click', async () => {
@@ -44,7 +42,6 @@ if (document.getElementById('loginBtn')) {
       return;
     }
 
-    // إظهار اللودر وتعطيل الزر أثناء الجلب
     loader.classList.remove('hidden');
     loginBtn.disabled = true;
     loginBtn.textContent = 'جاري التحقق...';
@@ -62,7 +59,6 @@ if (document.getElementById('loginBtn')) {
     } catch {
       msg.textContent = 'حدث خطأ في الاتصال، حاول مجددًا.';
     } finally {
-      // إخفاء اللودر وإعادة الزر
       loader.classList.add('hidden');
       loginBtn.disabled = false;
       loginBtn.textContent = 'دخول';
@@ -82,7 +78,7 @@ if (document.getElementById('updateForm')) {
   if (!data || !data.success) {
     msg.textContent = 'الرجاء العودة للصفحة الرئيسية.';
   } else {
-    // 🔸 تعبئة الحقول
+    // تعبئة الحقول
     const fill = (id, val, lock = false) => {
       const el = document.getElementById(id);
       if (el) {
@@ -108,85 +104,113 @@ if (document.getElementById('updateForm')) {
     fill('level', data.level);
     fill('grade', data.grade);
 
-    // 🔸 في حالة أن المدرسة أكدت مسبقاً
+    // لو البيانات مؤكدة مسبقًا
     if (data.updated) {
       document.querySelectorAll('input, select').forEach(i => i.setAttribute('readonly', true));
-      document.getElementById('saveBtn').disabled = true;
+      const saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) saveBtn.disabled = true;
       msg.textContent = 'تم تأكيد البيانات مسبقًا — عرض فقط.';
-      return;
+    } else {
+      // عند الضغط على "تحديث البيانات"
+      document.getElementById('updateForm').addEventListener('submit', e => {
+        e.preventDefault();
+        document.getElementById('confirmBox').classList.remove('hidden');
+      });
+
+      // زر تأكيد الإرسال
+      const confirmBtn = document.getElementById('confirmBtn');
+      const saveBtn = document.getElementById('saveBtn');
+      const loaderSave = document.createElement('span');
+      loaderSave.className = 'loader hidden';
+      loaderSave.style.marginRight = '8px';
+      loaderSave.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg" stroke="#006c35">
+          <g fill="none" fill-rule="evenodd">
+            <g transform="translate(1 1)" stroke-width="3">
+              <circle stroke-opacity=".3" cx="18" cy="18" r="16"></circle>
+              <path d="M34 18c0-9.94-8.06-18-18-18">
+                <animateTransform
+                  attributeName="transform"
+                  type="rotate"
+                  from="0 18 18"
+                  to="360 18 18"
+                  dur="1s"
+                  repeatCount="indefinite"/>
+              </path>
+            </g>
+          </g>
+        </svg>`;
+      if (saveBtn) saveBtn.parentNode.insertBefore(loaderSave, saveBtn);
+
+      confirmBtn.addEventListener('click', async () => {
+        msg.textContent = '⏳ جاري حفظ البيانات...';
+        loaderSave.classList.remove('hidden');
+        confirmBtn.disabled = true;
+
+        const payload = {
+          number: data.number,
+          fields: {
+            principal: document.getElementById('principalName').value,
+            principalPhone: document.getElementById('principalPhone').value,
+            email: document.getElementById('schoolEmail').value,
+            ownership: document.getElementById('ownership').value,
+            coordinator: document.getElementById('coordinatorName').value,
+            coordinatorID: document.getElementById('coordinatorID').value,
+            coordinatorPhone: document.getElementById('coordinatorPhone').value,
+            jobType: document.getElementById('jobType').value,
+            qualification: document.getElementById('qualification').value,
+            farsTitle: document.getElementById('farsTitle').value,
+            level: document.getElementById('level').value,
+            grade: document.getElementById('grade').value
+          }
+        };
+
+        const fileInput = document.getElementById('assignmentFile');
+        let base64File = '';
+
+        if (fileInput && fileInput.files.length > 0) {
+          const file = fileInput.files[0];
+          if (file.type !== 'application/pdf') {
+            msg.textContent = '❌ يُسمح فقط برفع ملفات PDF.';
+            loaderSave.classList.add('hidden');
+            confirmBtn.disabled = false;
+            return;
+          }
+
+          base64File = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        try {
+          const res = await fetch(SHEET_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, file: base64File })
+          });
+
+          const result = await res.json();
+
+          if (result.success) {
+            msg.textContent = '✅ تم حفظ البيانات ورفع الملف بنجاح.';
+            localStorage.setItem('schoolData', JSON.stringify({ ...data, updated: true }));
+            document.querySelectorAll('input').forEach(i => i.setAttribute('readonly', true));
+            if (saveBtn) saveBtn.disabled = true;
+            document.getElementById('confirmBox').classList.add('hidden');
+          } else {
+            msg.textContent = '⚠️ فشل في الحفظ، تحقق من الاتصال.';
+          }
+        } catch (error) {
+          console.error('Error sending data:', error);
+          msg.textContent = '❌ حدث خطأ أثناء الإرسال.';
+        } finally {
+          loaderSave.classList.add('hidden');
+          confirmBtn.disabled = false;
+        }
+      });
     }
-
-    // 🔸 عند الضغط على زر "تحديث البيانات"
-    document.getElementById('updateForm').addEventListener('submit', e => {
-      e.preventDefault();
-      document.getElementById('confirmBox').classList.remove('hidden');
-    });
-
-    // 🔸 عند تأكيد إرسال البيانات
-    document.getElementById('confirmBtn').addEventListener('click', async () => {
-      msg.textContent = '⏳ جاري حفظ البيانات...';
-
-      // 1. جمع الحقول
-      const payload = {
-        number: data.number,
-        fields: {
-          principal: document.getElementById('principalName').value,
-          principalPhone: document.getElementById('principalPhone').value,
-          email: document.getElementById('schoolEmail').value,
-          ownership: document.getElementById('ownership').value,
-          coordinator: document.getElementById('coordinatorName').value,
-          coordinatorID: document.getElementById('coordinatorID').value,
-          coordinatorPhone: document.getElementById('coordinatorPhone').value,
-          jobType: document.getElementById('jobType').value,
-          qualification: document.getElementById('qualification').value,
-          farsTitle: document.getElementById('farsTitle').value,
-          level: document.getElementById('level').value,
-          grade: document.getElementById('grade').value
-        }
-      };
-
-      // 2. قراءة ملف PDF وتحويله إلى Base64
-      const fileInput = document.getElementById('assignmentFile');
-      let base64File = '';
-
-      if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        if (file.type !== 'application/pdf') {
-          msg.textContent = '❌ يُسمح فقط برفع ملفات PDF.';
-          return;
-        }
-
-        base64File = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result.split(',')[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
-
-      // 3. إرسال البيانات إلى Google Script
-      try {
-        const res = await fetch(SHEET_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, file: base64File })
-        });
-
-        const result = await res.json();
-
-        if (result.success) {
-          msg.textContent = '✅ تم حفظ البيانات ورفع الملف بنجاح.';
-          localStorage.setItem('schoolData', JSON.stringify({ ...data, updated: true }));
-          document.querySelectorAll('input').forEach(i => i.setAttribute('readonly', true));
-          document.getElementById('saveBtn').disabled = true;
-          document.getElementById('confirmBox').classList.add('hidden');
-        } else {
-          msg.textContent = '⚠️ فشل في الحفظ، تحقق من الاتصال.';
-        }
-      } catch (error) {
-        msg.textContent = '❌ حدث خطأ أثناء الإرسال.';
-        console.error('Error sending data:', error);
-      }
-    });
   }
 }
