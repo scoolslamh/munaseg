@@ -6,32 +6,66 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz857i4LM61y2FMRXC2Cf
 // 🟢 صفحة الدخول
 // ============================
 if (document.getElementById('loginBtn')) {
-  document.getElementById('loginBtn').addEventListener('click', async () => {
+  const loginBtn = document.getElementById('loginBtn');
+  const msg = document.getElementById('message');
+
+  // إنشاء مؤشر تحميل (spinner)
+  const loader = document.createElement('span');
+  loader.className = 'loader hidden';
+  loader.style.marginRight = '8px';
+  loader.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg" stroke="#fff">
+      <g fill="none" fill-rule="evenodd">
+        <g transform="translate(1 1)" stroke-width="3">
+          <circle stroke-opacity=".3" cx="18" cy="18" r="16"></circle>
+          <path d="M34 18c0-9.94-8.06-18-18-18">
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from="0 18 18"
+              to="360 18 18"
+              dur="1s"
+              repeatCount="indefinite"/>
+          </path>
+        </g>
+      </g>
+    </svg>`;
+
+  // إدراج اللودر قبل الزر
+  loginBtn.parentNode.insertBefore(loader, loginBtn);
+
+  loginBtn.addEventListener('click', async () => {
     const number = document.getElementById('schoolNumber').value.trim();
-    const msg = document.getElementById('message');
     msg.textContent = '';
 
-    // 🔸 التحقق من أن الرقم الوزاري مكوّن من 5 أرقام على الأقل
     const digitsOnly = number.replace(/[^0-9]/g, '');
     if (digitsOnly.length < 5) {
       msg.textContent = 'الرقم الوزاري يجب ألا يقل عن 5 أرقام.';
       return;
     }
 
+    // إظهار اللودر وتعطيل الزر أثناء الجلب
+    loader.classList.remove('hidden');
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'جاري التحقق...';
+
     try {
       const res = await fetch(`${SHEET_URL}?action=login&number=${encodeURIComponent(number)}`);
       const data = await res.json();
 
       if (data.success) {
-        // حفظ البيانات مؤقتاً في المتصفح
         localStorage.setItem('schoolData', JSON.stringify(data));
-        // الانتقال إلى صفحة النموذج
         window.location.href = 'form.html';
       } else {
         msg.textContent = 'لم يتم العثور على الرقم الوزاري.';
       }
     } catch {
       msg.textContent = 'حدث خطأ في الاتصال، حاول مجددًا.';
+    } finally {
+      // إخفاء اللودر وإعادة الزر
+      loader.classList.add('hidden');
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'دخول';
     }
   });
 }
@@ -117,7 +151,6 @@ if (document.getElementById('updateForm')) {
 
       if (fileInput && fileInput.files.length > 0) {
         const file = fileInput.files[0];
-
         if (file.type !== 'application/pdf') {
           msg.textContent = '❌ يُسمح فقط برفع ملفات PDF.';
           return;
