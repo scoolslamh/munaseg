@@ -1,5 +1,5 @@
 // 🔗 رابط Google Apps Script المنشور
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbxIEOiQKxmc21TMVNHRqcDWgljaWzBhRiimWUDM45RnfcsYRminU2EMlLld03bbXE0KGQ/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbzjgkQ4-4DosB0JPVCkL-nqLCEHxuBZjLv_KXLwnvDqtyCbYRYWQxkyZJQubrNuDMj-Tw/exec";
 
 
 // ============================
@@ -214,4 +214,5 @@ if (document.getElementById('updateForm')) {
     }
   }
 }
+
 
