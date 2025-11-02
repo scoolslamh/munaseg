@@ -1,221 +1,199 @@
-// 🔗 رابط Google Apps Script المنشور
-const SHEET_URL = "https://api.allorigins.win/raw?url=" +
-  encodeURIComponent("https://script.google.com/macros/s/AKfycbzjgkQ4-4DosB0JPVCkL-nqLCEHxuBZjLv_KXLwnvDqtyCbYRYWQxkyZJQubrNuDMj-Tw/exec");
+// ===============================
+// 🟢 إعداد الاتصال بـ Supabase
+// ===============================
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const SUPABASE_URL = "https://gtiypqqevuaswzxqgmar.supabase.co";
+const SUPABASE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0aXlwcXFldnVhc3d6eHFnbWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNjIwMTcsImV4cCI6MjA3NzYzODAxN30.pA9fBRZn4VYqBrlaP0tsLNCeE6l-jzrIc0QQYGfuRTk";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 🔗 رابط Google Apps Script (خاص برفع الملف فقط)
+const DRIVE_API =
+  "https://script.google.com/macros/s/AKfycbx7Bf96ppW_jpNKzCZcBpFkG8ejdPkRCpGx_CgKnHgME3bqHXMT4tyMfxfyKSpK9afkAA/exec";
 
 
 // ============================
 // 🟢 صفحة الدخول
 // ============================
-if (document.getElementById('loginBtn')) {
-  const loginBtn = document.getElementById('loginBtn');
-  const msg = document.getElementById('message');
+if (document.getElementById("loginBtn")) {
+  const loginBtn = document.getElementById("loginBtn");
+  const msg = document.getElementById("message");
 
-  // إنشاء مؤشر تحميل
-  const loader = document.createElement('span');
-  loader.className = 'loader hidden';
-  loader.style.marginRight = '8px';
-  loader.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg" stroke="#fff">
-      <g fill="none" fill-rule="evenodd">
-        <g transform="translate(1 1)" stroke-width="3">
-          <circle stroke-opacity=".3" cx="18" cy="18" r="16"></circle>
-          <path d="M34 18c0-9.94-8.06-18-18-18">
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              from="0 18 18"
-              to="360 18 18"
-              dur="1s"
-              repeatCount="indefinite"/>
-          </path>
-        </g>
-      </g>
-    </svg>`;
-  loginBtn.parentNode.insertBefore(loader, loginBtn);
+  loginBtn.addEventListener("click", async () => {
+    const number = document.getElementById("schoolNumber").value.trim();
+    msg.textContent = "";
 
-  loginBtn.addEventListener('click', async () => {
-    const number = document.getElementById('schoolNumber').value.trim();
-    msg.textContent = '';
-
-    const digitsOnly = number.replace(/[^0-9]/g, '');
+    // ✅ تحقق من الرقم الوزاري
+    const digitsOnly = number.replace(/[^0-9]/g, "");
     if (digitsOnly.length < 5) {
-      msg.textContent = 'الرقم الوزاري يجب ألا يقل عن 5 أرقام.';
+      msg.textContent = "الرقم الوزاري يجب ألا يقل عن 5 أرقام.";
       return;
     }
 
-    loader.classList.remove('hidden');
     loginBtn.disabled = true;
-    loginBtn.textContent = 'جاري التحقق...';
+    loginBtn.textContent = "جاري التحقق...";
 
     try {
-      const res = await fetch(`${SHEET_URL}?action=login&number=${encodeURIComponent(number)}`);
-      const data = await res.json();
+      // 🔹 جلب البيانات من Supabase
+      const { data, error } = await supabase
+        .from("schools")
+        .select("*")
+        .eq("number", number)
+        .maybeSingle();
 
-      if (data.success) {
-        localStorage.setItem('schoolData', JSON.stringify(data));
-        window.location.href = 'form.html';
+      if (error) throw error;
+
+      if (data) {
+        localStorage.setItem("schoolData", JSON.stringify(data));
+        window.location.href = "form.html";
       } else {
-        msg.textContent = 'لم يتم العثور على الرقم الوزاري.';
+        msg.textContent = "لم يتم العثور على الرقم الوزاري.";
       }
-    } catch {
-      msg.textContent = 'حدث خطأ في الاتصال، حاول مجددًا.';
+    } catch (err) {
+      msg.textContent = "⚠️ خطأ في الاتصال بقاعدة البيانات.";
+      console.error(err);
     } finally {
-      loader.classList.add('hidden');
       loginBtn.disabled = false;
-      loginBtn.textContent = 'دخول';
+      loginBtn.textContent = "دخول";
     }
   });
 }
 
 
-
 // ============================
-// 🟢 صفحة البيانات
+// 🟢 صفحة البيانات (form.html)
 // ============================
-if (document.getElementById('updateForm')) {
-  const data = JSON.parse(localStorage.getItem('schoolData') || '{}');
-  const msg = document.getElementById('message');
+if (document.getElementById("updateForm")) {
+  const data = JSON.parse(localStorage.getItem("schoolData") || "{}");
+  const msg = document.getElementById("message");
 
-  if (!data || !data.success) {
-    msg.textContent = 'الرجاء العودة للصفحة الرئيسية.';
+  if (!data || !data.number) {
+    msg.textContent = "الرجاء العودة للصفحة الرئيسية.";
   } else {
-    // تعبئة الحقول
+    // ✅ تعبئة الحقول
     const fill = (id, val, lock = false) => {
       const el = document.getElementById(id);
       if (el) {
-        el.value = val || '';
-        if (lock) el.setAttribute('readonly', true);
+        el.value = val || "";
+        if (lock) el.setAttribute("readonly", true);
       }
     };
 
-    fill('schoolNumber', data.number, true);
-    fill('schoolName', data.schoolName, true);
-    fill('schoolGender', data.gender, true);
-    fill('schoolArea', data.area, true);
-    fill('principalName', data.principal);
-    fill('principalPhone', data.principalPhone);
-    fill('schoolEmail', data.email);
-    fill('ownership', data.ownership);
-    fill('coordinatorName', data.coordinator);
-    fill('coordinatorID', data.coordinatorID);
-    fill('coordinatorPhone', data.coordinatorPhone);
-    fill('jobType', data.jobType);
-    fill('qualification', data.qualification);
-    fill('farsTitle', data.farsTitle);
-    fill('level', data.level);
-    fill('grade', data.grade);
+    fill("schoolNumber", data.number, true);
+    fill("schoolName", data.school_name, true);
+    fill("schoolGender", data.gender, true);
+    fill("schoolArea", data.area, true);
+    fill("principalName", data.principal);
+    fill("principalPhone", data.principal_phone);
+    fill("schoolEmail", data.email);
+    fill("ownership", data.ownership);
+    fill("coordinatorName", data.coordinator);
+    fill("coordinatorID", data.coordinator_id);
+    fill("coordinatorPhone", data.coordinator_phone);
+    fill("jobType", data.job_type);
+    fill("qualification", data.qualification);
+    fill("farsTitle", data.fars_title);
+    fill("level", data.level);
+    fill("grade", data.grade);
 
-    // لو البيانات مؤكدة مسبقًا
-    if (data.updated) {
-      document.querySelectorAll('input, select').forEach(i => i.setAttribute('readonly', true));
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) saveBtn.disabled = true;
-      msg.textContent = 'تم تأكيد البيانات مسبقًا — عرض فقط.';
-    } else {
-      // عند الضغط على "تحديث البيانات"
-      document.getElementById('updateForm').addEventListener('submit', e => {
+    // إذا كانت البيانات مؤكدة مسبقًا
+    if (data.status === "تم التأكيد") {
+      document
+        .querySelectorAll("input, select")
+        .forEach((i) => i.setAttribute("readonly", true));
+      document.getElementById("saveBtn").disabled = true;
+      msg.textContent = "تم تأكيد البيانات مسبقًا — عرض فقط.";
+      return;
+    }
+
+    // عند الضغط على زر حفظ
+    document
+      .getElementById("updateForm")
+      .addEventListener("submit", (e) => {
         e.preventDefault();
-        document.getElementById('confirmBox').classList.remove('hidden');
+        document.getElementById("confirmBox").classList.remove("hidden");
       });
 
-      // زر تأكيد الإرسال
-      const confirmBtn = document.getElementById('confirmBtn');
-      const saveBtn = document.getElementById('saveBtn');
-      const loaderSave = document.createElement('span');
-      loaderSave.className = 'loader hidden';
-      loaderSave.style.marginRight = '8px';
-      loaderSave.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg" stroke="#006c35">
-          <g fill="none" fill-rule="evenodd">
-            <g transform="translate(1 1)" stroke-width="3">
-              <circle stroke-opacity=".3" cx="18" cy="18" r="16"></circle>
-              <path d="M34 18c0-9.94-8.06-18-18-18">
-                <animateTransform
-                  attributeName="transform"
-                  type="rotate"
-                  from="0 18 18"
-                  to="360 18 18"
-                  dur="1s"
-                  repeatCount="indefinite"/>
-              </path>
-            </g>
-          </g>
-        </svg>`;
-      if (saveBtn) saveBtn.parentNode.insertBefore(loaderSave, saveBtn);
+    // عند تأكيد الحفظ
+    document
+      .getElementById("confirmBtn")
+      .addEventListener("click", async () => {
+        msg.textContent = "⏳ جاري حفظ البيانات...";
 
-      confirmBtn.addEventListener('click', async () => {
-        msg.textContent = '⏳ جاري حفظ البيانات...';
-        loaderSave.classList.remove('hidden');
-        confirmBtn.disabled = true;
-
-        const payload = {
-          number: data.number,
-          fields: {
-            principal: document.getElementById('principalName').value,
-            principalPhone: document.getElementById('principalPhone').value,
-            email: document.getElementById('schoolEmail').value,
-            ownership: document.getElementById('ownership').value,
-            coordinator: document.getElementById('coordinatorName').value,
-            coordinatorID: document.getElementById('coordinatorID').value,
-            coordinatorPhone: document.getElementById('coordinatorPhone').value,
-            jobType: document.getElementById('jobType').value,
-            qualification: document.getElementById('qualification').value,
-            farsTitle: document.getElementById('farsTitle').value,
-            level: document.getElementById('level').value,
-            grade: document.getElementById('grade').value
-          }
+        // 1️⃣ تجهيز البيانات
+        const fields = {
+          principal: document.getElementById("principalName").value,
+          principal_phone: document.getElementById("principalPhone").value,
+          email: document.getElementById("schoolEmail").value,
+          ownership: document.getElementById("ownership").value,
+          coordinator: document.getElementById("coordinatorName").value,
+          coordinator_id: document.getElementById("coordinatorID").value,
+          coordinator_phone: document.getElementById("coordinatorPhone").value,
+          job_type: document.getElementById("jobType").value,
+          qualification: document.getElementById("qualification").value,
+          fars_title: document.getElementById("farsTitle").value,
+          level: document.getElementById("level").value,
+          grade: document.getElementById("grade").value,
         };
 
-        const fileInput = document.getElementById('assignmentFile');
-        let base64File = '';
+        // 2️⃣ رفع الملف إلى Google Drive
+        const fileInput = document.getElementById("assignmentFile");
+        let fileUrl = "";
 
         if (fileInput && fileInput.files.length > 0) {
           const file = fileInput.files[0];
-          if (file.type !== 'application/pdf') {
-            msg.textContent = '❌ يُسمح فقط برفع ملفات PDF.';
-            loaderSave.classList.add('hidden');
-            confirmBtn.disabled = false;
+          if (file.type !== "application/pdf") {
+            msg.textContent = "❌ يُسمح فقط برفع ملفات PDF.";
             return;
           }
 
-          base64File = await new Promise((resolve, reject) => {
+          const base64 = await new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onload = () => resolve(reader.result.split(",")[1]);
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
+
+          try {
+            const res = await fetch(DRIVE_API, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                file: base64,
+                coordinatorName: fields.coordinator || "منسق",
+              }),
+            });
+            const result = await res.json();
+            if (result.success) fileUrl = result.url;
+          } catch (err) {
+            console.error("خطأ أثناء رفع الملف:", err);
+          }
         }
 
-        try {
-          const res = await fetch(SHEET_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, file: base64File })
-          });
+        // 3️⃣ حفظ البيانات في Supabase
+        const { error } = await supabase
+          .from("schools")
+          .update({
+            ...fields,
+            pdf_url: fileUrl,
+            status: "تم التأكيد",
+            last_update: new Date().toISOString(),
+          })
+          .eq("number", data.number);
 
-          const result = await res.json();
-
-          if (result.success) {
-            msg.textContent = '✅ تم حفظ البيانات ورفع الملف بنجاح.';
-            localStorage.setItem('schoolData', JSON.stringify({ ...data, updated: true }));
-            document.querySelectorAll('input').forEach(i => i.setAttribute('readonly', true));
-            if (saveBtn) saveBtn.disabled = true;
-            document.getElementById('confirmBox').classList.add('hidden');
-          } else {
-            msg.textContent = '⚠️ فشل في الحفظ، تحقق من الاتصال.';
-          }
-        } catch (error) {
-          console.error('Error sending data:', error);
-          msg.textContent = '❌ حدث خطأ أثناء الإرسال.';
-        } finally {
-          loaderSave.classList.add('hidden');
-          confirmBtn.disabled = false;
+        if (error) {
+          msg.textContent = "⚠️ فشل في الحفظ، تحقق من الاتصال.";
+          console.error(error);
+        } else {
+          msg.textContent = "✅ تم حفظ البيانات ورفع الملف بنجاح.";
+          document
+            .querySelectorAll("input")
+            .forEach((i) => i.setAttribute("readonly", true));
+          document.getElementById("saveBtn").disabled = true;
+          document.getElementById("confirmBox").classList.add("hidden");
         }
       });
-    }
   }
 }
-
-
-
